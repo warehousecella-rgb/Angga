@@ -12,7 +12,7 @@ interface NavbarProps {
   settings: AppSettings;
   onToggleSound: () => void;
   syncCount: { total: number; synced: number };
-  step: ScanStep;
+  step?: ScanStep;
   onToggleMobileMenuPosition?: (pos: 'side' | 'bottom') => void;
 }
 
@@ -24,57 +24,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   settings,
   onToggleSound,
   syncCount,
-  step,
 }) => {
-  const mobilePos = settings.mobileMenuPosition || 'side';
-
-  const getStepStatusInfo = () => {
-    switch (step) {
-      case 'HU1_READY':
-        return {
-          text: 'Menunggu Scan HU 1',
-          textColor: 'text-indigo-400',
-          dotColor: 'bg-indigo-400',
-          pingColor: 'bg-indigo-500',
-          bgBadge: 'bg-indigo-500/10 border-indigo-500/30',
-        };
-      case 'HU2_READY':
-        return {
-          text: 'Menunggu Scan HU 2',
-          textColor: 'text-amber-400',
-          dotColor: 'bg-amber-400',
-          pingColor: 'bg-amber-500',
-          bgBadge: 'bg-amber-500/10 border-amber-500/30',
-        };
-      case 'MISMATCH_LOCKED':
-        return {
-          text: 'Sistem Terkunci (Mismatch)',
-          textColor: 'text-rose-400',
-          dotColor: 'bg-rose-500',
-          pingColor: 'bg-rose-500',
-          bgBadge: 'bg-rose-500/10 border-rose-500/30',
-        };
-      case 'MATCH_PROMPT':
-        return {
-          text: 'Validasi Cocok (Match)',
-          textColor: 'text-emerald-400',
-          dotColor: 'bg-emerald-400',
-          pingColor: 'bg-emerald-500',
-          bgBadge: 'bg-emerald-500/10 border-emerald-500/30',
-        };
-      default:
-        return {
-          text: 'Menunggu Scan HU 1',
-          textColor: 'text-indigo-400',
-          dotColor: 'bg-indigo-400',
-          pingColor: 'bg-indigo-500',
-          bgBadge: 'bg-indigo-500/10 border-indigo-500/30',
-        };
-    }
-  };
-
-  const status = getStepStatusInfo();
-
   // Operator PIC Action Button
   const renderPicButton = (compact = false) => {
     if (picName) {
@@ -213,84 +163,36 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* MOBILE VARIANT 1: MENU DI SAMPING STATUS MENUNGGU SCAN HU 1 */}
-          {mobilePos === 'side' && (
-            <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-1.5 overflow-x-auto pb-0.5">
-              {/* Status Menunggu Scan HU 1 (Samping Kiri) */}
-              <div
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-bold shrink-0 ${status.bgBadge}`}
-                title={`Status Saat Ini: ${status.text}`}
-              >
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span
-                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${status.pingColor}`}
-                  />
-                  <span
-                    className={`relative inline-flex rounded-full h-2 w-2 ${status.dotColor}`}
-                  />
-                </span>
-                <span className={`text-[11px] font-bold truncate max-w-[130px] ${status.textColor}`}>
-                  {status.text}
-                </span>
-              </div>
-
-              {/* Menu Controls (Samping Kanan Status) */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                {renderPicButton(true)}
-                {renderSoundButton()}
-                {renderSettingsButton(true)}
-              </div>
+          {/* Mobile Action Controls */}
+          <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-1.5">
+            <div className="flex-1 min-w-0">
+              {renderPicButton(false)}
             </div>
-          )}
 
-          {/* MOBILE VARIANT 2: MENU DI BAWAH TAMPILAN MENUNGGU SCAN HU 1 */}
-          {mobilePos === 'bottom' && (
-            <div className="pt-1.5 border-t border-slate-800/80 space-y-2">
-              {/* Tampilan Status Menunggu Scan HU 1 (Baris Atas) */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Sheets indicator */}
               <div
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs font-bold ${status.bgBadge}`}
+                className={`flex items-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-medium shrink-0 ${
+                  settings.googleSheetWebhookUrl
+                    ? 'bg-slate-800/80 border-slate-700 text-emerald-400'
+                    : 'bg-slate-800/50 border-slate-800 text-slate-400'
+                }`}
+                title={
+                  settings.googleSheetWebhookUrl
+                    ? `Google Sheets terhubung (${syncCount.synced}/${syncCount.total} sinkron)`
+                    : 'Google Sheets belum dikonfigurasi'
+                }
               >
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span
-                      className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${status.pingColor}`}
-                    />
-                    <span
-                      className={`relative inline-flex rounded-full h-2 w-2 ${status.dotColor}`}
-                    />
-                  </span>
-                  <span className={`text-xs font-bold tracking-wide ${status.textColor}`}>
-                    {status.text}
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  {syncCount.synced}/{syncCount.total} Sync
+                <Database className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-mono">
+                  {syncCount.synced}/{syncCount.total}
                 </span>
               </div>
 
-              {/* Tampilan Menu Mobile (Berada DI BAWAH Tampilan Menunggu Scan HU 1) */}
-              <div className="flex items-center justify-between gap-1.5 pt-0.5">
-                <div className="flex-1 min-w-0">
-                  {renderPicButton(false)}
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {/* Sheets indicator */}
-                  {settings.googleSheetWebhookUrl ? (
-                    <div
-                      className="p-2 rounded-lg border bg-slate-800/80 border-slate-700 text-emerald-400 shrink-0"
-                      title="Google Sheets Terhubung"
-                    >
-                      <Database className="w-3.5 h-3.5" />
-                    </div>
-                  ) : null}
-
-                  {renderSoundButton()}
-                  {renderSettingsButton(false)}
-                </div>
-              </div>
+              {renderSoundButton()}
+              {renderSettingsButton(true)}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </header>

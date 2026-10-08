@@ -56,6 +56,7 @@ export const App: React.FC = () => {
     const savedSet = getSavedSettings();
 
     setSettings(savedSet);
+    sounds.setCustomMismatchAudio(savedSet.customMismatchAudio || null);
     setLogs(savedLogs);
     setPicName('');
 
@@ -66,6 +67,7 @@ export const App: React.FC = () => {
   // Save changes to localStorage
   useEffect(() => {
     saveSettings(settings);
+    sounds.setCustomMismatchAudio(settings.customMismatchAudio || null);
     if (!settings.soundEnabled) {
       sounds.stopContinuousMismatchAlert();
     }

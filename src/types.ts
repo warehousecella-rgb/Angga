@@ -18,6 +18,8 @@ export interface AppSettings {
   hapticEnabled: boolean;
   activeShift: string;
   mobileMenuPosition?: 'side' | 'bottom';
+  customMismatchAudio?: string;
+  customMismatchAudioName?: string;
 }
 
 export type ScanStep = 'IDLE' | 'HU1_READY' | 'HU2_READY' | 'VALIDATING' | 'MATCH_PROMPT' | 'MISMATCH_LOCKED';

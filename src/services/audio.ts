@@ -2,6 +2,36 @@
 
 class SoundManager {
   private ctx: AudioContext | null = null;
+  private mismatchAudio: HTMLAudioElement | null = null;
+  private customAudioSrc: string | null = null;
+  private mismatchTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    this.initMismatchAudio();
+  }
+
+  private initMismatchAudio() {
+    try {
+      if (typeof window !== 'undefined') {
+        const audio = new Audio();
+        audio.src = this.customAudioSrc || '/tithuh-warning-545568.mp3';
+        audio.preload = 'auto';
+        this.mismatchAudio = audio;
+      }
+    } catch {
+      // Audio element not supported
+    }
+  }
+
+  setCustomMismatchAudio(src: string | null) {
+    this.customAudioSrc = src;
+    if (this.mismatchAudio) {
+      this.mismatchAudio.src = src || '/tithuh-warning-545568.mp3';
+      this.mismatchAudio.load();
+    } else {
+      this.initMismatchAudio();
+    }
+  }
 
   private initCtx() {
     if (!this.ctx) {
@@ -67,33 +97,66 @@ class SoundManager {
     }
   }
 
-  private mismatchTimer: ReturnType<typeof setInterval> | null = null;
-
-  // Urgent, loud warning alarm on mismatch
+  // Urgent, loud warning alarm on mismatch (menggunakan suara tithuh warning)
   playMismatchAlert() {
+    // 1. Coba putar audio elemen (tithuh-warning-545568.mp3 atau audio kustom)
+    if (this.mismatchAudio) {
+      try {
+        this.mismatchAudio.currentTime = 0;
+        const playPromise = this.mismatchAudio.play();
+        if (playPromise) {
+          playPromise.catch(() => {
+            // Jika autoplay audio element dibatasi browser, putar versi synthesizer Web Audio API
+            this.playSynthesizedMismatchAlert();
+          });
+          return;
+        }
+      } catch {
+        // Fallback ke synthesizer
+      }
+    }
+    this.playSynthesizedMismatchAlert();
+  }
+
+  // Synthesized warning sound cadangan (pola 2-pulse alert frekuensi tinggi-rendah 980Hz/680Hz)
+  playSynthesizedMismatchAlert() {
     try {
       this.initCtx();
       if (!this.ctx) return;
       const now = this.ctx.currentTime;
 
-      // 3 rapid pulsing harsh sawtooth wave alerts
-      for (let i = 0; i < 3; i++) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
+      // Pola alarm warning tithuh: 2 pulsa nada tinggi diikuti nada rendah
+      const bursts = [
+        { start: 0, highFreq: 980, lowFreq: 680, highDur: 0.12, lowDur: 0.15 },
+        { start: 0.35, highFreq: 980, lowFreq: 680, highDur: 0.12, lowDur: 0.20 },
+      ];
 
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(320, now + i * 0.16);
-        osc.frequency.linearRampToValueAtTime(220, now + i * 0.16 + 0.12);
+      bursts.forEach((b) => {
+        if (!this.ctx) return;
+        // Tone 1: High alert tone
+        const osc1 = this.ctx.createOscillator();
+        const gain1 = this.ctx.createGain();
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(b.highFreq, now + b.start);
+        gain1.gain.setValueAtTime(0.3, now + b.start);
+        gain1.gain.exponentialRampToValueAtTime(0.01, now + b.start + b.highDur);
+        osc1.connect(gain1);
+        gain1.connect(this.ctx.destination);
+        osc1.start(now + b.start);
+        osc1.stop(now + b.start + b.highDur);
 
-        gain.gain.setValueAtTime(0.35, now + i * 0.16);
-        gain.gain.linearRampToValueAtTime(0.01, now + i * 0.16 + 0.13);
-
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.start(now + i * 0.16);
-        osc.stop(now + i * 0.16 + 0.14);
-      }
+        // Tone 2: Low alert tone
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(b.lowFreq, now + b.start + b.highDur);
+        gain2.gain.setValueAtTime(0.32, now + b.start + b.highDur);
+        gain2.gain.exponentialRampToValueAtTime(0.01, now + b.start + b.highDur + b.lowDur);
+        osc2.connect(gain2);
+        gain2.connect(this.ctx.destination);
+        osc2.start(now + b.start + b.highDur);
+        osc2.stop(now + b.start + b.highDur + b.lowDur);
+      });
     } catch {
       // Ignore
     }
@@ -105,7 +168,7 @@ class SoundManager {
     this.playMismatchAlert();
     this.mismatchTimer = setInterval(() => {
       this.playMismatchAlert();
-    }, 650);
+    }, 900);
   }
 
   // Stop continuous mismatch alarm
@@ -113,6 +176,14 @@ class SoundManager {
     if (this.mismatchTimer) {
       clearInterval(this.mismatchTimer);
       this.mismatchTimer = null;
+    }
+    if (this.mismatchAudio) {
+      try {
+        this.mismatchAudio.pause();
+        this.mismatchAudio.currentTime = 0;
+      } catch {
+        // Ignore
+      }
     }
   }
 

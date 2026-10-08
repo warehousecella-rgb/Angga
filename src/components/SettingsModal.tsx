@@ -20,6 +20,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  const handleCustomAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        const updated = {
+          ...formData,
+          customMismatchAudio: dataUrl,
+          customMismatchAudioName: file.name,
+        };
+        setFormData(updated);
+        sounds.setCustomMismatchAudio(dataUrl);
+        sounds.playMismatchAlert();
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetAudio = () => {
+    const updated = {
+      ...formData,
+      customMismatchAudio: undefined,
+      customMismatchAudioName: undefined,
+    };
+    setFormData(updated);
+    sounds.setCustomMismatchAudio(null);
+    sounds.playMismatchAlert();
+  };
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -206,10 +237,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => sounds.playMismatchAlert()}
-                className="px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 rounded-lg text-xs font-medium transition"
+                className="px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-sm"
+                title="Suara Alarm Mismatch (tithuh-warning-545568.mp3)"
               >
-                Tes Alarm MISMATCH
+                <span>Tes Alarm MISMATCH</span>
+                <span className="px-1.5 py-0.5 bg-rose-500/20 text-rose-200 text-[10px] rounded font-mono border border-rose-500/30">
+                  {formData.customMismatchAudioName || 'Tithuh Warning'}
+                </span>
               </button>
+            </div>
+
+            {/* Custom Warning Audio File Info & Upload */}
+            <div className="pt-2 border-t border-slate-800/70 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1.5 text-slate-300">
+                <span className="text-[11px] text-slate-400">File Audio Aktif:</span>
+                <span className="font-medium text-rose-300 bg-rose-950/50 px-2 py-0.5 rounded border border-rose-800/40 text-[11px]">
+                  {formData.customMismatchAudioName || 'tithuh-warning-545568.mp3'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="cursor-pointer px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-[11px] font-medium transition border border-slate-700">
+                  Ganti File Suara (.mp3/.wav)
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={handleCustomAudioUpload}
+                  />
+                </label>
+                {formData.customMismatchAudio && (
+                  <button
+                    type="button"
+                    onClick={handleResetAudio}
+                    className="px-2 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded text-[11px] transition"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
