@@ -163,20 +163,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <h1 className="font-bold text-lg text-white tracking-tight leading-tight">
                 System Validasi HU
               </h1>
-              {/* Dynamic Status & Live Indicator */}
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="relative flex h-2 w-2">
-                  <span
-                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${status.pingColor}`}
-                  />
-                  <span
-                    className={`relative inline-flex rounded-full h-2 w-2 ${status.dotColor}`}
-                  />
-                </span>
-                <span className={`text-xs font-bold tracking-wide ${status.textColor}`}>
-                  {status.text}
-                </span>
-              </div>
             </div>
           </div>
 
