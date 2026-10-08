@@ -1,0 +1,10 @@
+{
+  "name": "Remix Sistem Validasi Scan HU",
+  "description": "Aplikasi validasi scan barcode/QR code HU 1 dan HU 2 dengan real-time log, suara notifikasi, kunci password supervisor jika mismatch, dan integrasi Google Sheets/Drive.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
