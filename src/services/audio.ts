@@ -14,7 +14,7 @@ class SoundManager {
     try {
       if (typeof window !== 'undefined') {
         const audio = new Audio();
-        audio.src = this.customAudioSrc || '/tithuh-warning-545568.mp3';
+        audio.src = this.customAudioSrc || '/warning.mp3';
         audio.preload = 'auto';
         this.mismatchAudio = audio;
       }
@@ -26,7 +26,7 @@ class SoundManager {
   setCustomMismatchAudio(src: string | null) {
     this.customAudioSrc = src;
     if (this.mismatchAudio) {
-      this.mismatchAudio.src = src || '/tithuh-warning-545568.mp3';
+      this.mismatchAudio.src = src || '/warning.mp3';
       this.mismatchAudio.load();
     } else {
       this.initMismatchAudio();
@@ -97,16 +97,15 @@ class SoundManager {
     }
   }
 
-  // Urgent, loud warning alarm on mismatch (menggunakan suara tithuh warning)
+  // Urgent, loud warning alarm on mismatch (menggunakan suara warning terlampir)
   playMismatchAlert() {
-    // 1. Coba putar audio elemen (tithuh-warning-545568.mp3 atau audio kustom)
     if (this.mismatchAudio) {
       try {
+        this.mismatchAudio.loop = false;
         this.mismatchAudio.currentTime = 0;
         const playPromise = this.mismatchAudio.play();
         if (playPromise) {
           playPromise.catch(() => {
-            // Jika autoplay audio element dibatasi browser, putar versi synthesizer Web Audio API
             this.playSynthesizedMismatchAlert();
           });
           return;
@@ -125,7 +124,7 @@ class SoundManager {
       if (!this.ctx) return;
       const now = this.ctx.currentTime;
 
-      // Pola alarm warning tithuh: 2 pulsa nada tinggi diikuti nada rendah
+      // Pola alarm warning cadangan
       const bursts = [
         { start: 0, highFreq: 980, lowFreq: 680, highDur: 0.12, lowDur: 0.15 },
         { start: 0.35, highFreq: 980, lowFreq: 680, highDur: 0.12, lowDur: 0.20 },
@@ -133,7 +132,6 @@ class SoundManager {
 
       bursts.forEach((b) => {
         if (!this.ctx) return;
-        // Tone 1: High alert tone
         const osc1 = this.ctx.createOscillator();
         const gain1 = this.ctx.createGain();
         osc1.type = 'sawtooth';
@@ -145,7 +143,6 @@ class SoundManager {
         osc1.start(now + b.start);
         osc1.stop(now + b.start + b.highDur);
 
-        // Tone 2: Low alert tone
         const osc2 = this.ctx.createOscillator();
         const gain2 = this.ctx.createGain();
         osc2.type = 'sawtooth';
@@ -165,10 +162,28 @@ class SoundManager {
   // Continuously play mismatch alarm in loop until supervisor unlocks
   startContinuousMismatchAlert() {
     this.stopContinuousMismatchAlert();
-    this.playMismatchAlert();
+    if (this.mismatchAudio) {
+      try {
+        this.mismatchAudio.loop = true;
+        this.mismatchAudio.currentTime = 0;
+        const p = this.mismatchAudio.play();
+        if (p) {
+          p.catch(() => {
+            this.playSynthesizedMismatchAlert();
+            this.mismatchTimer = setInterval(() => {
+              this.playSynthesizedMismatchAlert();
+            }, 1200);
+          });
+        }
+        return;
+      } catch {
+        // Fallback
+      }
+    }
+    this.playSynthesizedMismatchAlert();
     this.mismatchTimer = setInterval(() => {
-      this.playMismatchAlert();
-    }, 900);
+      this.playSynthesizedMismatchAlert();
+    }, 1200);
   }
 
   // Stop continuous mismatch alarm
@@ -181,6 +196,7 @@ class SoundManager {
       try {
         this.mismatchAudio.pause();
         this.mismatchAudio.currentTime = 0;
+        this.mismatchAudio.loop = false;
       } catch {
         // Ignore
       }

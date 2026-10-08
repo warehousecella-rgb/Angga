@@ -238,11 +238,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 onClick={() => sounds.playMismatchAlert()}
                 className="px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-sm"
-                title="Suara Alarm Mismatch (tithuh-warning-545568.mp3)"
+                title="Suara Alarm Mismatch (warning.mp3)"
               >
                 <span>Tes Alarm MISMATCH</span>
                 <span className="px-1.5 py-0.5 bg-rose-500/20 text-rose-200 text-[10px] rounded font-mono border border-rose-500/30">
-                  {formData.customMismatchAudioName || 'Tithuh Warning'}
+                  {formData.customMismatchAudioName || 'Warning! Warning!'}
                 </span>
               </button>
             </div>
@@ -252,7 +252,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center gap-1.5 text-slate-300">
                 <span className="text-[11px] text-slate-400">File Audio Aktif:</span>
                 <span className="font-medium text-rose-300 bg-rose-950/50 px-2 py-0.5 rounded border border-rose-800/40 text-[11px]">
-                  {formData.customMismatchAudioName || 'tithuh-warning-545568.mp3'}
+                  {formData.customMismatchAudioName || 'warning.mp3 (Default Terlampir)'}
                 </span>
               </div>
               <div className="flex items-center gap-2">
