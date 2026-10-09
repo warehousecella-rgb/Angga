@@ -1,5 +1,24 @@
-import React, { useState } from 'react';
-import { X, Save, Key, Database, Volume2, HelpCircle, Check, Copy, Smartphone, Columns, Rows } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Save,
+  Key,
+  Database,
+  Volume2,
+  HelpCircle,
+  Check,
+  Copy,
+  Smartphone,
+  Columns,
+  Rows,
+  Lock,
+  Unlock,
+  KeyRound,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  AlertCircle,
+} from 'lucide-react';
 import { AppSettings } from '../types';
 import { sounds } from '../services/audio';
 
@@ -19,6 +38,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [copiedCode, setCopiedCode] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Status kunci untuk Administrator dengan Akses Editor
+  const [isEditorUnlocked, setIsEditorUnlocked] = useState(false);
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [adminAuthKey, setAdminAuthKey] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(settings);
+      setIsEditorUnlocked(false);
+      setShowAuthForm(false);
+      setAdminAuthKey('');
+      setAuthError('');
+      setShowPassword(false);
+    }
+  }, [isOpen, settings]);
+
+  const handleVerifyAdmin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = adminAuthKey.trim();
+    // Password khusus untuk buka akses editor: open123
+    if (trimmed === 'open123' || trimmed.toLowerCase() === 'open123') {
+      setIsEditorUnlocked(true);
+      setShowAuthForm(false);
+      setAuthError('');
+      setAdminAuthKey('');
+    } else {
+      setAuthError('Password Akses Editor salah. Masukkan password yang benar (open123).');
+    }
+  };
 
   const handleCustomAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -178,23 +229,150 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-200 text-sm">
           {/* Supervisor Password */}
           <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3">
-            <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs uppercase tracking-wider">
-              <Key className="w-4 h-4" />
-              <span>Keamanan Supervisor</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs uppercase tracking-wider">
+                <Key className="w-4 h-4" />
+                <span>Keamanan Supervisor</span>
+              </div>
+              {isEditorUnlocked ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                  <Unlock className="w-3 h-3" />
+                  Akses Editor Aktif (Administrator)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 bg-slate-850 border border-slate-700/80 px-2.5 py-0.5 rounded-full">
+                  <Lock className="w-3 h-3 text-amber-400" />
+                  Terkunci (Hanya Administrator)
+                </span>
+              )}
             </div>
+
             <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                Password Supervisor (Untuk Membuka Kunci Saat Terjadi Mismatch)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs text-slate-400">
+                  Password Supervisor (Untuk Membuka Kunci Saat Terjadi Mismatch)
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 transition"
+                  >
+                    {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{showPassword ? 'Sembunyikan' : 'Lihat'}</span>
+                  </button>
+                  {isEditorUnlocked ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditorUnlocked(false);
+                        setShowAuthForm(false);
+                      }}
+                      className="text-[11px] text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Lock className="w-3 h-3" />
+                      Kunci Kembali
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAuthForm(true);
+                        setAuthError('');
+                        setAdminAuthKey('');
+                      }}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <KeyRound className="w-3 h-3" />
+                      Buka Akses Editor
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <input
-                type="text"
+                type={showPassword ? 'text' : 'password'}
                 value={formData.supervisorPassword}
-                onChange={(e) => setFormData({ ...formData, supervisorPassword: e.target.value })}
-                placeholder="Default: admin"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                onChange={(e) => {
+                  if (isEditorUnlocked) {
+                    setFormData({ ...formData, supervisorPassword: e.target.value });
+                  }
+                }}
+                readOnly={!isEditorUnlocked}
+                disabled={!isEditorUnlocked}
+                placeholder={isEditorUnlocked ? "Masukkan password supervisor baru" : "•••••••• (Terkunci - Hanya Administrator)"}
+                className={`w-full rounded-lg px-3 py-2 text-sm transition focus:outline-none ${
+                  isEditorUnlocked
+                    ? 'bg-slate-900 border-2 border-emerald-500 text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/30'
+                    : 'bg-slate-950/80 border border-slate-800 text-slate-400 cursor-not-allowed select-none opacity-85'
+                }`}
               />
-              <p className="text-[11px] text-slate-500 mt-1">
-                Password ini wajib dimasukkan operator jika HU 1 dan HU 2 tidak cocok.
+
+              {showAuthForm && !isEditorUnlocked && (
+                <div className="mt-3 p-3.5 rounded-xl bg-slate-900 border border-indigo-500/40 space-y-2.5 animate-fadeIn shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                      Otorisasi Administrator (Akses Editor)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAuthForm(false)}
+                      className="text-slate-400 hover:text-white text-xs p-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Masukkan password Akses Editor untuk membuka kunci pengeditan password supervisor.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      autoFocus
+                      value={adminAuthKey}
+                      onChange={(e) => {
+                        setAdminAuthKey(e.target.value);
+                        setAuthError('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleVerifyAdmin();
+                        }
+                      }}
+                      placeholder="Masukkan password editor..."
+                      className="flex-1 bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyAdmin()}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Unlock className="w-3.5 h-3.5" />
+                      Buka Kunci
+                    </button>
+                  </div>
+                  {authError && (
+                    <p className="text-[11px] text-rose-400 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      {authError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500 mt-1.5">
+                {isEditorUnlocked ? (
+                  <span className="text-emerald-400 font-medium flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" />
+                    Akses Editor Aktif. Anda dapat merubah password supervisor di atas, lalu klik Simpan Pengaturan.
+                  </span>
+                ) : (
+                  <span>
+                    Password ini terkunci otomatis agar tidak ada yang bisa merubah, kecuali Administrator yang memiliki akses editor.
+                  </span>
+                )}
               </p>
             </div>
           </div>
