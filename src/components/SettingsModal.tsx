@@ -8,9 +8,6 @@ import {
   HelpCircle,
   Check,
   Copy,
-  Smartphone,
-  Columns,
-  Rows,
   Lock,
   Unlock,
   KeyRound,
@@ -18,9 +15,11 @@ import {
   EyeOff,
   ShieldCheck,
   AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { sounds } from '../services/audio';
+import { DEFAULT_GOOGLE_SHEET_WEBHOOK_URL } from '../services/storage';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -37,6 +36,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Status kunci untuk Administrator dengan Akses Editor
@@ -48,7 +48,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setFormData(settings);
+      setFormData({
+        ...settings,
+        googleSheetWebhookUrl:
+          settings.googleSheetWebhookUrl?.trim() || DEFAULT_GOOGLE_SHEET_WEBHOOK_URL,
+      });
       setIsEditorUnlocked(false);
       setShowAuthForm(false);
       setAdminAuthKey('');
@@ -100,6 +104,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setFormData(updated);
     sounds.setCustomMismatchAudio(null);
     sounds.playMismatchAlert();
+  };
+
+  const handleCopyWebhookUrl = () => {
+    if (formData.googleSheetWebhookUrl) {
+      navigator.clipboard.writeText(formData.googleSheetWebhookUrl);
+      setCopiedWebhookUrl(true);
+      setTimeout(() => setCopiedWebhookUrl(false), 2000);
+    }
   };
 
   if (!isOpen) return null;
@@ -248,10 +260,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs text-slate-400">
-                  Password Supervisor (Untuk Membuka Kunci Saat Terjadi Mismatch)
-                </label>
+              <div className="flex items-center justify-end mb-1.5">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -361,81 +370,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   )}
                 </div>
               )}
-
-              <p className="text-[11px] text-slate-500 mt-1.5">
-                {isEditorUnlocked ? (
-                  <span className="text-emerald-400 font-medium flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" />
-                    Akses Editor Aktif. Anda dapat merubah password supervisor di atas, lalu klik Simpan Pengaturan.
-                  </span>
-                ) : (
-                  <span>
-                    Password ini terkunci otomatis agar tidak ada yang bisa merubah, kecuali Administrator yang memiliki akses editor.
-                  </span>
-                )}
-              </p>
             </div>
           </div>
 
-          {/* Sound & Feedback Testing */}
-          <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3">
-            <div className="flex items-center gap-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
-              <Volume2 className="w-4 h-4" />
-              <span>Audio & Notifikasi Suara Device</span>
-            </div>
-            <div className="flex items-center justify-between py-1">
-              <div>
-                <span className="font-medium text-white">Aktifkan Efek Suara</span>
-                <p className="text-xs text-slate-400">Bunyi saat scan berhasil, matching, dan alarm peringatan mismatch.</p>
+          {/* Sound & Feedback Testing (Compact Layout) */}
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Audio & Notifikasi Suara Device</span>
               </div>
-              <input
-                type="checkbox"
-                checked={formData.soundEnabled}
-                onChange={(e) => setFormData({ ...formData, soundEnabled: e.target.checked })}
-                className="w-5 h-5 rounded accent-indigo-600 cursor-pointer"
-              />
+              <label className="flex items-center gap-2 cursor-pointer text-xs select-none">
+                <span className="text-slate-300 font-medium text-[11px]">Aktifkan Suara</span>
+                <input
+                  type="checkbox"
+                  checked={formData.soundEnabled}
+                  onChange={(e) => setFormData({ ...formData, soundEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded accent-indigo-600 cursor-pointer"
+                />
+              </label>
             </div>
 
             {/* Test Audio Buttons */}
-            <div className="pt-2 flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => sounds.playScanBeep()}
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-300 transition"
+                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded-md text-[11px] font-medium text-slate-300 transition"
               >
-                Tes Beep Scan
+                Tes Beep
               </button>
               <button
                 type="button"
                 onClick={() => sounds.playMatchSuccess()}
-                className="px-2.5 py-1.5 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-800/60 rounded-lg text-xs font-medium transition"
+                className="px-2 py-1 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-800/60 rounded-md text-[11px] font-medium transition"
               >
-                Tes Suara MATCH
+                Tes MATCH
               </button>
               <button
                 type="button"
                 onClick={() => sounds.playMismatchAlert()}
-                className="px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-sm"
+                className="px-2 py-1 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 rounded-md text-[11px] font-medium transition shadow-sm"
                 title="Suara Alarm Mismatch (warning.mp3)"
               >
-                <span>Tes Alarm MISMATCH</span>
-                <span className="px-1.5 py-0.5 bg-rose-500/20 text-rose-200 text-[10px] rounded font-mono border border-rose-500/30">
-                  {formData.customMismatchAudioName || 'Warning! Warning!'}
-                </span>
+                Tes Alarm MISMATCH
               </button>
             </div>
 
             {/* Custom Warning Audio File Info & Upload */}
-            <div className="pt-2 border-t border-slate-800/70 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-1.5 text-slate-300">
+            <div className="pt-2 border-t border-slate-800/70 flex flex-wrap items-center justify-between gap-1.5 text-xs">
+              <div className="flex items-center gap-1.5 text-slate-300 min-w-0 truncate">
                 <span className="text-[11px] text-slate-400">File Audio Aktif:</span>
-                <span className="font-medium text-rose-300 bg-rose-950/50 px-2 py-0.5 rounded border border-rose-800/40 text-[11px]">
-                  {formData.customMismatchAudioName || 'warning.mp3 (Default Terlampir)'}
+                <span className="font-medium text-rose-300 bg-rose-950/50 px-2 py-0.5 rounded border border-rose-800/40 text-[11px] truncate max-w-[260px]" title={formData.customMismatchAudioName || 'warning.mp3 (Executive Pro Error - Loop)'}>
+                  {formData.customMismatchAudioName || 'warning.mp3 (Executive Pro Error)'}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <label className="cursor-pointer px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-[11px] font-medium transition border border-slate-700">
-                  Ganti File Suara (.mp3/.wav)
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleResetAudio}
+                  className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-white rounded text-[11px] font-medium transition border border-slate-700/80 flex items-center gap-1 cursor-pointer"
+                  title="Kembalikan suara alarm error ke suara default (Executive Pro Error)"
+                >
+                  Reset Default
+                </button>
+                <label className="cursor-pointer px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-[11px] font-medium transition border border-slate-700">
+                  Ganti File
                   <input
                     type="file"
                     accept="audio/*"
@@ -443,74 +443,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     onChange={handleCustomAudioUpload}
                   />
                 </label>
-                {formData.customMismatchAudio && (
-                  <button
-                    type="button"
-                    onClick={handleResetAudio}
-                    className="px-2 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded text-[11px] transition"
-                  >
-                    Reset
-                  </button>
-                )}
               </div>
-            </div>
-          </div>
-
-          {/* Mobile Menu Layout Options */}
-          <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3">
-            <div className="flex items-center gap-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
-              <Smartphone className="w-4 h-4" />
-              <span>Tata Letak Menu Mobile (Smartphone)</span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Pilih posisi tombol menu (PIC Operator, Suara, Pengaturan) pada tampilan layar HP/mobile:
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, mobileMenuPosition: 'side' })}
-                className={`p-3 rounded-xl border text-left flex flex-col gap-1.5 transition ${
-                  (formData.mobileMenuPosition || 'side') === 'side'
-                    ? 'bg-indigo-950/30 border-indigo-500/80 ring-1 ring-indigo-500/50 text-white'
-                    : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-400'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 font-bold text-xs">
-                    <Columns className="w-3.5 h-3.5 text-indigo-400" />
-                    Di Samping Status HU 1
-                  </span>
-                  {(formData.mobileMenuPosition || 'side') === 'side' && (
-                    <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                  )}
-                </div>
-                <span className="text-[11px] text-slate-400 leading-snug">
-                  Menu sejajar horizontal di samping kanan teks "Menunggu Scan HU 1" (hemat ruang vertikal).
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, mobileMenuPosition: 'bottom' })}
-                className={`p-3 rounded-xl border text-left flex flex-col gap-1.5 transition ${
-                  formData.mobileMenuPosition === 'bottom'
-                    ? 'bg-emerald-950/30 border-emerald-500/80 ring-1 ring-emerald-500/50 text-white'
-                    : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-400'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 font-bold text-xs">
-                    <Rows className="w-3.5 h-3.5 text-emerald-400" />
-                    Di Bawah Status HU 1
-                  </span>
-                  {formData.mobileMenuPosition === 'bottom' && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  )}
-                </div>
-                <span className="text-[11px] text-slate-400 leading-snug">
-                  Status "Menunggu Scan HU 1" tampil penuh di atas, dan tombol menu tertata rapi di baris bawahnya.
-                </span>
-              </button>
             </div>
           </div>
 
@@ -537,21 +470,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                Google Apps Script Webhook URL
-              </label>
+              <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
+                <div className="flex items-center gap-2">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Google Apps Script Webhook URL
+                  </label>
+                  {(formData.googleSheetWebhookUrl || '').trim() === DEFAULT_GOOGLE_SHEET_WEBHOOK_URL ? (
+                    <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                      Default Sistem
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                      Link Kustom
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {(formData.googleSheetWebhookUrl || '').trim() !== DEFAULT_GOOGLE_SHEET_WEBHOOK_URL && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          googleSheetWebhookUrl: DEFAULT_GOOGLE_SHEET_WEBHOOK_URL,
+                        })
+                      }
+                      className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 hover:underline flex items-center gap-1 transition"
+                      title="Kembalikan ke link spreadsheet default sistem"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Kembalikan ke Link Default</span>
+                    </button>
+                  )}
+                  {formData.googleSheetWebhookUrl && (
+                    <button
+                      type="button"
+                      onClick={handleCopyWebhookUrl}
+                      className="text-[11px] font-medium text-slate-400 hover:text-slate-200 flex items-center gap-1 transition"
+                      title="Salin URL saat ini"
+                    >
+                      {copiedWebhookUrl ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-400">Tersalin</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Salin</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <input
                 type="url"
                 value={formData.googleSheetWebhookUrl}
                 onChange={(e) => setFormData({ ...formData, googleSheetWebhookUrl: e.target.value })}
-                placeholder="https://script.google.com/macros/s/.../exec"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono text-xs"
+                placeholder={DEFAULT_GOOGLE_SHEET_WEBHOOK_URL}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono tracking-tight"
               />
-              <p className="text-[11px] text-slate-500 mt-1">
-                {formData.googleSheetWebhookUrl
-                  ? 'Setiap pemindaian sukses atau mismatch akan otomatis terkirim langsung ke Spreadsheet.'
-                  : 'Masukkan Webhook URL Google Apps Script untuk mengaktifkan pencatatan otomatis ke Spreadsheet Google Drive.'}
-              </p>
             </div>
 
             {/* Guide to setup Google Sheets */}

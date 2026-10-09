@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Settings, Database, Volume2, VolumeX } from 'lucide-react';
+import { User, Settings, Database, Volume2, VolumeX, WifiOff } from 'lucide-react';
 import { AppSettings, ScanStep } from '../types';
 import { DSVLogo } from './DSVLogo';
 import { cleanShiftName } from '../services/storage';
@@ -14,6 +14,8 @@ interface NavbarProps {
   syncCount: { total: number; synced: number };
   step?: ScanStep;
   onToggleMobileMenuPosition?: (pos: 'side' | 'bottom') => void;
+  isOnline?: boolean;
+  reconnectCountdown?: number | null;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -24,6 +26,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   settings,
   onToggleSound,
   syncCount,
+  isOnline = true,
+  reconnectCountdown = null,
 }) => {
   // Operator PIC Action Button
   const renderPicButton = (compact = false) => {
@@ -123,24 +127,46 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Cloud Sync Status */}
             <div
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${
-                settings.googleSheetWebhookUrl
+                !isOnline
+                  ? 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+                  : reconnectCountdown !== null && reconnectCountdown > 0
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse'
+                  : settings.googleSheetWebhookUrl
                   ? 'bg-slate-800/80 border-slate-700 text-emerald-400'
                   : 'bg-slate-800/50 border-slate-800 text-slate-400'
               }`}
               title={
-                settings.googleSheetWebhookUrl
+                !isOnline
+                  ? 'Koneksi terputus (Offline). Data tersimpan lokal & auto sync saat koneksi kembali.'
+                  : reconnectCountdown !== null && reconnectCountdown > 0
+                  ? `Koneksi stabil kembali, sinkronisasi otomatis dalam ${reconnectCountdown} detik`
+                  : settings.googleSheetWebhookUrl
                   ? `Google Sheets terhubung (${syncCount.synced}/${syncCount.total} sinkron)`
                   : 'Google Sheets belum dikonfigurasi'
               }
             >
-              <Database className="w-3.5 h-3.5" />
-              <span className="text-[11px]">
-                {settings.googleSheetWebhookUrl ? (
-                  <span>Sheets Active ({syncCount.synced}/{syncCount.total})</span>
-                ) : (
-                  <span>Sheets Off</span>
-                )}
-              </span>
+              {!isOnline ? (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 text-rose-400" />
+                  <span className="text-[11px]">Offline</span>
+                </>
+              ) : reconnectCountdown !== null && reconnectCountdown > 0 ? (
+                <>
+                  <Database className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                  <span className="text-[11px]">Stabilizing ({reconnectCountdown}s)</span>
+                </>
+              ) : (
+                <>
+                  <Database className="w-3.5 h-3.5" />
+                  <span className="text-[11px]">
+                    {settings.googleSheetWebhookUrl ? (
+                      <span>Sheets Active ({syncCount.synced}/{syncCount.total})</span>
+                    ) : (
+                      <span>Sheets Off</span>
+                    )}
+                  </span>
+                </>
+              )}
             </div>
 
             {renderSoundButton()}
@@ -173,19 +199,39 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Sheets indicator */}
               <div
                 className={`flex items-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-medium shrink-0 ${
-                  settings.googleSheetWebhookUrl
+                  !isOnline
+                    ? 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+                    : reconnectCountdown !== null && reconnectCountdown > 0
+                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse'
+                    : settings.googleSheetWebhookUrl
                     ? 'bg-slate-800/80 border-slate-700 text-emerald-400'
                     : 'bg-slate-800/50 border-slate-800 text-slate-400'
                 }`}
                 title={
-                  settings.googleSheetWebhookUrl
+                  !isOnline
+                    ? 'Koneksi terputus (Offline)'
+                    : reconnectCountdown !== null && reconnectCountdown > 0
+                    ? `Sinkronisasi otomatis dalam ${reconnectCountdown} detik`
+                    : settings.googleSheetWebhookUrl
                     ? `Google Sheets terhubung (${syncCount.synced}/${syncCount.total} sinkron)`
                     : 'Google Sheets belum dikonfigurasi'
                 }
               >
-                <Database className="w-3.5 h-3.5" />
+                {!isOnline ? (
+                  <WifiOff className="w-3.5 h-3.5 text-rose-400" />
+                ) : reconnectCountdown !== null && reconnectCountdown > 0 ? (
+                  <Database className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                ) : (
+                  <Database className="w-3.5 h-3.5" />
+                )}
                 <span className="text-[10px] font-mono">
-                  {syncCount.synced}/{syncCount.total}
+                  {reconnectCountdown !== null && reconnectCountdown > 0 ? (
+                    `${reconnectCountdown}s`
+                  ) : !isOnline ? (
+                    'Off'
+                  ) : (
+                    `${syncCount.synced}/${syncCount.total}`
+                  )}
                 </span>
               </div>
 

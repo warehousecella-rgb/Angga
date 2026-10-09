@@ -15,6 +15,7 @@ import {
   saveOperator,
   syncLogToGoogleSheet,
   cleanShiftName,
+  DEFAULT_GOOGLE_SHEET_WEBHOOK_URL,
 } from './services/storage';
 import { sounds } from './services/audio';
 
@@ -32,7 +33,19 @@ export const App: React.FC = () => {
   const [activeShift, setActiveShift] = useState<string>('Shift 1');
   const [settings, setSettings] = useState<AppSettings>(getSavedSettings());
   const [logs, setLogs] = useState<ScanLogItem[]>([]);
+  const [syncedSessionCount, setSyncedSessionCount] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [reconnectCountdown, setReconnectCountdown] = useState<number | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const isSyncingRef = useRef<boolean>(false);
+  const logsRef = useRef<ScanLogItem[]>(logs);
+
+  useEffect(() => {
+    logsRef.current = logs;
+  }, [logs]);
 
   // Scan Values & Flow
   const [hu1Value, setHu1Value] = useState<string>('');
@@ -52,13 +65,15 @@ export const App: React.FC = () => {
 
   // Initial Load: Setiap kali link/aplikasi dibuka wajib input nama operator
   useEffect(() => {
-    const savedLogs = getSavedLogs();
+    // Hanya simpan log yang belum tersinkron (pending) agar storage & aplikasi tetap ringan
+    const savedLogs = getSavedLogs().filter((l) => !l.syncedToGoogleSheet);
     const savedSet = getSavedSettings();
 
     setSettings(savedSet);
     sounds.setCustomMismatchAudio(savedSet.customMismatchAudio || null);
     setLogs(savedLogs);
     setPicName('');
+    saveLogs(savedLogs);
 
     // Wajib tampilkan popup input nama operator setiap kali link dibuka
     setIsOperatorModalOpen(true);
@@ -83,6 +98,117 @@ export const App: React.FC = () => {
       sounds.stopContinuousMismatchAlert();
     }
   }, [isMismatchModalOpen]);
+
+  // Perform sync to Google Sheets for unsynced logs
+  const syncQueueToGoogleSheets = async () => {
+    if (isSyncingRef.current) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setIsOnline(false);
+      return;
+    }
+
+    const currentLogs = logsRef.current;
+    const unsynced = currentLogs.filter((l) => !l.syncedToGoogleSheet);
+    if (unsynced.length === 0) return;
+
+    const webhookUrl =
+      settings.googleSheetWebhookUrl?.trim() || DEFAULT_GOOGLE_SHEET_WEBHOOK_URL;
+    if (!webhookUrl) return;
+
+    isSyncingRef.current = true;
+    setIsSyncing(true);
+
+    try {
+      for (const item of unsynced) {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          setIsOnline(false);
+          break;
+        }
+
+        const res = await syncLogToGoogleSheet(item, webhookUrl);
+        if (res.success) {
+          // Data yang berhasil tersinkron otomatis dihilangkan dari tabel log & storage agar aplikasi tidak berat
+          setLogs((prev) => prev.filter((l) => l.id !== item.id));
+          setSyncedSessionCount((prev) => prev + 1);
+        } else {
+          // If network error occurred, mark offline
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            setIsOnline(false);
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error auto-syncing to Google Sheets:', err);
+    } finally {
+      isSyncingRef.current = false;
+      setIsSyncing(false);
+    }
+  };
+
+  // Deteksi status koneksi internet & Auto-sync jeda 3 detik setelah koneksi kembali stabil
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+
+      // Bersihkan timer jeda stabilisasi yang sedang berjalan jika ada
+      if (reconnectTimerRef.current !== null) {
+        clearInterval(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+
+      // Jeda 3 detik setelah koneksi stabil sebelum sinkronisasi otomatis
+      let secondsLeft = 3;
+      setReconnectCountdown(secondsLeft);
+
+      reconnectTimerRef.current = window.setInterval(() => {
+        secondsLeft -= 1;
+        if (secondsLeft > 0) {
+          setReconnectCountdown(secondsLeft);
+        } else {
+          if (reconnectTimerRef.current !== null) {
+            clearInterval(reconnectTimerRef.current);
+            reconnectTimerRef.current = null;
+          }
+          setReconnectCountdown(null);
+          // Tepat 3 detik setelah koneksi stabil, otomatis sinkronkan seluruh data yang tertunda
+          syncQueueToGoogleSheets();
+        }
+      }, 1000);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      if (reconnectTimerRef.current !== null) {
+        clearInterval(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      setReconnectCountdown(null);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      if (reconnectTimerRef.current !== null) {
+        clearInterval(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
+  }, [settings.googleSheetWebhookUrl]);
+
+  // Otomatis sinkronisasi data di background saat koneksi stabil dan ada data yang belum tersinkron
+  useEffect(() => {
+    const hasUnsynced = logs.some((l) => !l.syncedToGoogleSheet);
+    if (hasUnsynced && isOnline && reconnectCountdown === null && !isSyncing) {
+      const timer = setTimeout(() => {
+        syncQueueToGoogleSheets();
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [logs, isOnline, reconnectCountdown, isSyncing, settings.googleSheetWebhookUrl]);
 
   // Focus Helper
   const focusHU1 = () => {
@@ -197,18 +323,25 @@ export const App: React.FC = () => {
     // Auto move cursor back to HU 1
     focusHU1();
 
-    // Async sync to Google Sheets if configured
-    if (settings.googleSheetWebhookUrl) {
-      try {
-        const res = await syncLogToGoogleSheet(newItem, settings.googleSheetWebhookUrl);
-        if (res.success) {
-          setLogs((prev) =>
-            prev.map((l) => (l.id === newItem.id ? { ...l, syncedToGoogleSheet: true } : l))
-          );
-        }
-      } catch (err) {
-        console.error('Auto sync error:', err);
-      }
+    // Async auto-sync to Google Sheets
+    const webhookUrl =
+      settings.googleSheetWebhookUrl?.trim() || DEFAULT_GOOGLE_SHEET_WEBHOOK_URL;
+    if (webhookUrl && isOnline && reconnectCountdown === null) {
+      syncLogToGoogleSheet(newItem, webhookUrl)
+        .then((res) => {
+          if (res.success) {
+            // Data yang sudah tersinkron otomatis dihilangkan dari tabel log & storage agar aplikasi tetap ringan
+            setLogs((prev) => prev.filter((l) => l.id !== newItem.id));
+            setSyncedSessionCount((prev) => prev + 1);
+          } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            setIsOnline(false);
+          }
+        })
+        .catch(() => {
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            setIsOnline(false);
+          }
+        });
     }
   };
 
@@ -241,39 +374,36 @@ export const App: React.FC = () => {
     setStep('HU1_READY');
     focusHU1();
 
-    if (settings.googleSheetWebhookUrl) {
-      try {
-        const res = await syncLogToGoogleSheet(newItem, settings.googleSheetWebhookUrl);
-        if (res.success) {
-          setLogs((prev) =>
-            prev.map((l) => (l.id === newItem.id ? { ...l, syncedToGoogleSheet: true } : l))
-          );
-        }
-      } catch (err) {
-        console.error('Mismatch sync error:', err);
-      }
+    // Async auto-sync to Google Sheets
+    const webhookUrl =
+      settings.googleSheetWebhookUrl?.trim() || DEFAULT_GOOGLE_SHEET_WEBHOOK_URL;
+    if (webhookUrl && isOnline && reconnectCountdown === null) {
+      syncLogToGoogleSheet(newItem, webhookUrl)
+        .then((res) => {
+          if (res.success) {
+            // Data yang sudah tersinkron otomatis dihilangkan dari tabel log & storage agar aplikasi tetap ringan
+            setLogs((prev) => prev.filter((l) => l.id !== newItem.id));
+            setSyncedSessionCount((prev) => prev + 1);
+          } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            setIsOnline(false);
+          }
+        })
+        .catch(() => {
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            setIsOnline(false);
+          }
+        });
     }
   };
 
-  // Sync all unsynced logs to Google Sheets
+  // Sync all unsynced logs to Google Sheets (Manual trigger or retry)
   const handleResyncAll = async () => {
-    if (!settings.googleSheetWebhookUrl) {
-      setIsSettingsModalOpen(true);
-      return;
+    if (reconnectTimerRef.current !== null) {
+      clearInterval(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+      setReconnectCountdown(null);
     }
-
-    setIsSyncing(true);
-    const unsynced = logs.filter((l) => !l.syncedToGoogleSheet);
-
-    for (const item of unsynced) {
-      const res = await syncLogToGoogleSheet(item, settings.googleSheetWebhookUrl);
-      if (res.success) {
-        setLogs((prev) =>
-          prev.map((l) => (l.id === item.id ? { ...l, syncedToGoogleSheet: true } : l))
-        );
-      }
-    }
-    setIsSyncing(false);
+    await syncQueueToGoogleSheets();
   };
 
   // Camera scan callback
@@ -301,7 +431,7 @@ export const App: React.FC = () => {
     setCameraScanTarget(null);
   };
 
-  const syncedCount = logs.filter((l) => l.syncedToGoogleSheet).length;
+  const pendingCount = logs.filter((l) => !l.syncedToGoogleSheet).length;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
@@ -315,11 +445,13 @@ export const App: React.FC = () => {
         onToggleSound={() =>
           setSettings((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }))
         }
-        syncCount={{ total: logs.length, synced: syncedCount }}
+        syncCount={{ total: syncedSessionCount + pendingCount, synced: syncedSessionCount }}
         step={step}
         onToggleMobileMenuPosition={(pos) =>
           setSettings((prev) => ({ ...prev, mobileMenuPosition: pos }))
         }
+        isOnline={isOnline}
+        reconnectCountdown={reconnectCountdown}
       />
 
       {/* Main Container */}
@@ -494,12 +626,14 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Real-time Log Table */}
+        {/* Real-time Log Table (Hanya menampilkan antrean pending) */}
         <LogTable
           logs={logs}
           onClearLogs={() => setLogs([])}
           onResyncAll={handleResyncAll}
           isSyncing={isSyncing}
+          isOnline={isOnline}
+          reconnectCountdown={reconnectCountdown}
         />
       </main>
 

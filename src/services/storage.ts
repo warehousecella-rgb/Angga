@@ -6,9 +6,14 @@ const STORAGE_KEYS = {
   OPERATOR: 'hu_scan_active_operator_v1',
 };
 
+export const DEFAULT_GOOGLE_SHEET_WEBHOOK_URL =
+  'https://script.google.com/macros/s/AKfycbyV-w06HB0qdZLxFvekZcH25rKFM7kcyxHcxL3J2VvlZG4RmhHtcPj8MjPuNyoSGmzHmQ/exec';
+
 export const defaultSettings: AppSettings = {
   supervisorPassword: 'admin', // Default supervisor PIN/Password
-  googleSheetWebhookUrl: ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_GOOGLE_SHEET_WEBHOOK_URL) || '',
+  googleSheetWebhookUrl:
+    ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_GOOGLE_SHEET_WEBHOOK_URL) ||
+    DEFAULT_GOOGLE_SHEET_WEBHOOK_URL,
   autoSaveOnMatch: true,
   soundEnabled: true,
   hapticEnabled: true,
@@ -20,7 +25,20 @@ export const getSavedSettings = (): AppSettings => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (!raw) return defaultSettings;
-    return { ...defaultSettings, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    // Kembalikan ke suara awal jika sebelumnya tersimpan suara terlampir warning-wife
+    if (
+      parsed.customMismatchAudioName === 'warning-wife.mp3'||
+      parsed.customMismatchAudioName === 'Warning! Warning!'
+    ) {
+      delete parsed.customMismatchAudio;
+      delete parsed.customMismatchAudioName;
+    }
+    // Jika googleSheetWebhookUrl kosong atau belum terisi, otomatis gunakan link default agar tidak lepas saat pembaharuan
+    if (!parsed.googleSheetWebhookUrl || !parsed.googleSheetWebhookUrl.trim()) {
+      parsed.googleSheetWebhookUrl = DEFAULT_GOOGLE_SHEET_WEBHOOK_URL;
+    }
+    return { ...defaultSettings, ...parsed };
   } catch {
     return defaultSettings;
   }
@@ -38,7 +56,8 @@ export const getSavedLogs = (): ScanLogItem[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.LOGS);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed: ScanLogItem[] = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((l) => !l.syncedToGoogleSheet) : [];
   } catch {
     return [];
   }
@@ -46,7 +65,9 @@ export const getSavedLogs = (): ScanLogItem[] => {
 
 export const saveLogs = (logs: ScanLogItem[]): void => {
   try {
-    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
+    // Hanya simpan log yang belum tersinkron agar tidak membebani memori dan storage
+    const pendingOnly = logs.filter((l) => !l.syncedToGoogleSheet);
+    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(pendingOnly));
   } catch (err) {
     console.error('Failed to save logs to localStorage:', err);
   }
@@ -122,10 +143,15 @@ export const saveOperator = (name: string, shift: string = 'Shift 1'): void => {
 // Send log to Google Sheets Apps Script Webhook
 export const syncLogToGoogleSheet = async (
   item: ScanLogItem,
-  webhookUrl: string
+  webhookUrl?: string
 ): Promise<{ success: boolean; error?: string }> => {
-  if (!webhookUrl || !webhookUrl.startsWith('http')) {
+  const targetUrl = (webhookUrl && webhookUrl.trim()) ? webhookUrl.trim() : DEFAULT_GOOGLE_SHEET_WEBHOOK_URL;
+  if (!targetUrl || !targetUrl.startsWith('http')) {
     return { success: false, error: 'Google Sheet Webhook URL belum diatur di Pengaturan' };
+  }
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return { success: false, error: 'Offline - Koneksi internet terputus' };
   }
 
   try {
@@ -147,7 +173,7 @@ export const syncLogToGoogleSheet = async (
       shift: cleanShift,
     };
 
-    await fetch(webhookUrl, {
+    await fetch(targetUrl, {
       method: 'POST',
       mode: 'no-cors', // Standard for Google Apps Script Webhooks to avoid CORS blocks in browsers
       headers: {

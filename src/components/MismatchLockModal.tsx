@@ -59,13 +59,13 @@ export const MismatchLockModal: React.FC<MismatchLockModalProps> = ({
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/40 mb-2">
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-            <span>Alarm Mismatch Berbunyi</span>
+            <span>Alarm Mismatch Berbunyi Terus-Menerus</span>
           </div>
           <h2 className="text-2xl font-black text-white mt-1">
             Sistem Terkunci (Mismatch)!
           </h2>
           <p className="text-sm text-rose-300/90 mt-1 max-w-sm mx-auto">
-            Scan HU 1 dan HU 2 <b>BERBEDA</b>. Masukkan password Supervisor untuk mencatat data mismatch ke log dan mereset sesi scan.
+            Scan HU 1 dan HU 2 <b>BERBEDA</b>. Suara alarm peringatan akan terus berbunyi hingga password keamanan Supervisor dimasukkan.
           </p>
         </div>
 

@@ -14,7 +14,7 @@ class SoundManager {
     try {
       if (typeof window !== 'undefined') {
         const audio = new Audio();
-        audio.src = this.customAudioSrc || '/warning.mp3';
+        audio.src = this.customAudioSrc || '/warning.mp3?v=executive-alert-v3';
         audio.preload = 'auto';
         this.mismatchAudio = audio;
       }
@@ -26,7 +26,7 @@ class SoundManager {
   setCustomMismatchAudio(src: string | null) {
     this.customAudioSrc = src;
     if (this.mismatchAudio) {
-      this.mismatchAudio.src = src || '/warning.mp3';
+      this.mismatchAudio.src = src || '/warning.mp3?v=executive-alert-v3';
       this.mismatchAudio.load();
     } else {
       this.initMismatchAudio();
@@ -117,42 +117,58 @@ class SoundManager {
     this.playSynthesizedMismatchAlert();
   }
 
-  // Synthesized warning sound cadangan (pola 2-pulse alert frekuensi tinggi-rendah 980Hz/680Hz)
+  // Synthesized warning sound cadangan: Pola Executive Industrial Error Chime (Dual-Pulse Harminized Alert)
   playSynthesizedMismatchAlert() {
     try {
       this.initCtx();
       if (!this.ctx) return;
       const now = this.ctx.currentTime;
 
-      // Pola alarm warning cadangan
-      const bursts = [
-        { start: 0, highFreq: 980, lowFreq: 680, highDur: 0.12, lowDur: 0.15 },
-        { start: 0.35, highFreq: 980, lowFreq: 680, highDur: 0.12, lowDur: 0.20 },
+      // Pulse 1: Urgent Warning Note (F5 + C6 + G#5) - t=0s
+      // Pulse 2: Authoritative Deep Error Body (C#5 + G#4 + F4) - t=0.28s
+      const strikes = [
+        {
+          time: 0,
+          partials: [
+            { freq: 698.46, gain: 0.35, decay: 0.28, type: 'sine' as OscillatorType },
+            { freq: 1046.50, gain: 0.18, decay: 0.22, type: 'sine' as OscillatorType },
+            { freq: 830.61, gain: 0.22, decay: 0.25, type: 'sine' as OscillatorType },
+            { freq: 349.23, gain: 0.20, decay: 0.32, type: 'triangle' as OscillatorType },
+          ],
+        },
+        {
+          time: 0.28,
+          partials: [
+            { freq: 554.37, gain: 0.38, decay: 0.42, type: 'sine' as OscillatorType },
+            { freq: 415.30, gain: 0.28, decay: 0.45, type: 'sine' as OscillatorType },
+            { freq: 277.18, gain: 0.25, decay: 0.50, type: 'triangle' as OscillatorType },
+            { freq: 830.61, gain: 0.12, decay: 0.25, type: 'sine' as OscillatorType },
+          ],
+        },
       ];
 
-      bursts.forEach((b) => {
+      strikes.forEach(({ time, partials }) => {
         if (!this.ctx) return;
-        const osc1 = this.ctx.createOscillator();
-        const gain1 = this.ctx.createGain();
-        osc1.type = 'sawtooth';
-        osc1.frequency.setValueAtTime(b.highFreq, now + b.start);
-        gain1.gain.setValueAtTime(0.3, now + b.start);
-        gain1.gain.exponentialRampToValueAtTime(0.01, now + b.start + b.highDur);
-        osc1.connect(gain1);
-        gain1.connect(this.ctx.destination);
-        osc1.start(now + b.start);
-        osc1.stop(now + b.start + b.highDur);
+        const t0 = now + time;
 
-        const osc2 = this.ctx.createOscillator();
-        const gain2 = this.ctx.createGain();
-        osc2.type = 'sawtooth';
-        osc2.frequency.setValueAtTime(b.lowFreq, now + b.start + b.highDur);
-        gain2.gain.setValueAtTime(0.32, now + b.start + b.highDur);
-        gain2.gain.exponentialRampToValueAtTime(0.01, now + b.start + b.highDur + b.lowDur);
-        osc2.connect(gain2);
-        gain2.connect(this.ctx.destination);
-        osc2.start(now + b.start + b.highDur);
-        osc2.stop(now + b.start + b.highDur + b.lowDur);
+        partials.forEach((p) => {
+          if (!this.ctx) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = p.type;
+          osc.frequency.setValueAtTime(p.freq, t0);
+
+          gain.gain.setValueAtTime(0.001, t0);
+          gain.gain.exponentialRampToValueAtTime(p.gain, t0 + 0.008);
+          gain.gain.exponentialRampToValueAtTime(0.001, t0 + p.decay);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(t0);
+          osc.stop(t0 + p.decay);
+        });
       });
     } catch {
       // Ignore
@@ -172,7 +188,7 @@ class SoundManager {
             this.playSynthesizedMismatchAlert();
             this.mismatchTimer = setInterval(() => {
               this.playSynthesizedMismatchAlert();
-            }, 1200);
+            }, 1400);
           });
         }
         return;
@@ -183,7 +199,7 @@ class SoundManager {
     this.playSynthesizedMismatchAlert();
     this.mismatchTimer = setInterval(() => {
       this.playSynthesizedMismatchAlert();
-    }, 1200);
+    }, 1400);
   }
 
   // Stop continuous mismatch alarm

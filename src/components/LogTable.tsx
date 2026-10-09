@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Clock,
   Check,
+  WifiOff,
 } from 'lucide-react';
 import { ScanLogItem } from '../types';
 import { exportLogsToCSV, parseOperatorAndShift } from '../services/storage';
@@ -15,6 +16,8 @@ interface LogTableProps {
   onClearLogs: () => void;
   onResyncAll: () => void;
   isSyncing: boolean;
+  isOnline?: boolean;
+  reconnectCountdown?: number | null;
 }
 
 export const LogTable: React.FC<LogTableProps> = ({
@@ -22,13 +25,17 @@ export const LogTable: React.FC<LogTableProps> = ({
   onClearLogs,
   onResyncAll,
   isSyncing,
+  isOnline = true,
+  reconnectCountdown = null,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'MATCH' | 'MISMATCH'>('ALL');
 
-  const syncedCount = logs.filter((log) => log.syncedToGoogleSheet).length;
+  // Hanya data yang masih proses pending yang ditampilkan dalam list tabel
+  const pendingLogs = logs.filter((log) => !log.syncedToGoogleSheet);
+  const pendingCount = pendingLogs.length;
 
-  const filteredLogs = logs.filter((log) => {
+  const filteredLogs = pendingLogs.filter((log) => {
     const { name: opName, shift: opShift } = parseOperatorAndShift(log.picName, log.shift);
     const matchesSearch =
       log.hu1.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -50,27 +57,24 @@ export const LogTable: React.FC<LogTableProps> = ({
         <div>
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <Clock className="w-4 h-4 text-indigo-400" />
-            Log Data Hasil Pemindaian
+            Antrean Log Pemindaian (Pending)
           </h2>
-          <p className="text-xs text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
-            <span className="inline-flex items-center gap-1 font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-              <span>
-                <strong>{syncedCount}</strong> Berhasil Tersinkron
-              </span>
-            </span>
-            {logs.length > syncedCount && (
-              <>
-                <span className="text-slate-600 hidden sm:inline">•</span>
-                <span className="inline-flex items-center gap-1 font-medium text-amber-400/90 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                  <span>
-                    <strong>{logs.length - syncedCount}</strong> Belum Tersinkron
-                  </span>
+          {(!isOnline || (reconnectCountdown !== null && reconnectCountdown > 0)) && (
+            <p className="text-xs text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+              {!isOnline && (
+                <span className="inline-flex items-center gap-1 font-medium text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
+                  <WifiOff className="w-3 h-3 text-rose-400 shrink-0" />
+                  <span>Offline (Tersimpan Lokal)</span>
                 </span>
-              </>
-            )}
-          </p>
+              )}
+              {reconnectCountdown !== null && reconnectCountdown > 0 && (
+                <span className="inline-flex items-center gap-1 font-medium text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30 animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin text-amber-300 shrink-0" />
+                  <span>Koneksi kembali stabil, sinkron otomatis dalam {reconnectCountdown} dtk...</span>
+                </span>
+              )}
+            </p>
+          )}
         </div>
       </div>
 
@@ -97,7 +101,7 @@ export const LogTable: React.FC<LogTableProps> = ({
                 statusFilter === 'ALL' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
-              Semua ({logs.length})
+              Pending ({pendingCount})
             </button>
             <button
               onClick={() => setStatusFilter('MATCH')}
@@ -119,38 +123,87 @@ export const LogTable: React.FC<LogTableProps> = ({
 
           {/* Export CSV for Drive / Excel */}
           <button
-            onClick={() => exportLogsToCSV(logs)}
-            disabled={logs.length === 0}
+            onClick={() => exportLogsToCSV(pendingLogs)}
+            disabled={pendingLogs.length === 0}
             id="btn-export-csv"
             className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
-            title="Download file CSV untuk disimpan di Google Drive atau Excel"
+            title="Download file CSV antrean log pending"
           >
             <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export CSV (Drive)</span>
+            <span className="hidden sm:inline">Export CSV</span>
           </button>
 
           {/* Resync with Google Sheets */}
           <button
             onClick={onResyncAll}
-            disabled={isSyncing || logs.length === 0}
+            disabled={isSyncing || pendingCount === 0}
             id="btn-resync-sheets"
-            className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-            title="Kirim ulang data yang belum tersinkron ke Google Sheets"
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+              isSyncing
+                ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 cursor-wait'
+                : reconnectCountdown !== null && reconnectCountdown > 0
+                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 animate-pulse'
+                : !isOnline
+                ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30'
+                : pendingCount > 0
+                ? 'bg-indigo-600/25 hover:bg-indigo-600/35 text-indigo-200 border border-indigo-500/30'
+                : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+            }`}
+            title={
+              isSyncing
+                ? 'Sedang menyinkronkan data ke Google Sheets...'
+                : reconnectCountdown !== null && reconnectCountdown > 0
+                ? `Koneksi stabil kembali. Sinkronisasi otomatis dalam jeda ${reconnectCountdown} detik (atau klik sekarang).`
+                : !isOnline
+                ? 'Koneksi terputus (Offline). Data tersimpan lokal & akan otomatis disinkronkan 3 detik setelah koneksi stabil.'
+                : pendingCount > 0
+                ? `${pendingCount} data pending. Klik untuk sinkronisasi manual atau tunggu otomatis.`
+                : 'Semua data telah tersinkron ke Spreadsheet.'
+            }
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Sinkronkan Ulang</span>
+            {isSyncing ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                <span className="hidden sm:inline">Menyinkronkan...</span>
+                <span className="sm:hidden">Sync...</span>
+              </>
+            ) : reconnectCountdown !== null && reconnectCountdown > 0 ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                <span className="hidden sm:inline">Auto Sync ({reconnectCountdown}s)</span>
+                <span className="sm:hidden">{reconnectCountdown}s</span>
+              </>
+            ) : !isOnline ? (
+              <>
+                <WifiOff className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Offline ({pendingCount})</span>
+                <span className="sm:hidden">Offline</span>
+              </>
+            ) : pendingCount > 0 ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 text-indigo-300" />
+                <span className="hidden sm:inline">Auto Sync ({pendingCount})</span>
+                <span className="sm:hidden">Sync ({pendingCount})</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Tersinkron Otomatis</span>
+                <span className="sm:hidden">Tersinkron</span>
+              </>
+            )}
           </button>
 
           {/* Clear Logs */}
           <button
             onClick={() => {
-              if (logs.length && confirm('Hapus seluruh riwayat log pemindaian di perangkat ini?')) {
+              if (pendingLogs.length && confirm('Hapus daftar antrean log yang belum tersinkron?')) {
                 onClearLogs();
               }
             }}
-            disabled={logs.length === 0}
+            disabled={pendingLogs.length === 0}
             className="p-1.5 rounded-xl bg-slate-850 hover:bg-rose-950/40 text-slate-500 hover:text-rose-400 border border-slate-850 hover:border-rose-900/50 text-xs transition disabled:opacity-30 cursor-pointer"
-            title="Hapus semua log"
+            title="Hapus antrean log pending"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -174,7 +227,18 @@ export const LogTable: React.FC<LogTableProps> = ({
             {filteredLogs.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-8 text-center text-slate-500 font-sans">
-                  Belum ada log pemindaian data. Mulai pindai barcode di atas.
+                  {pendingCount === 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-1.5 py-2">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <Check className="w-4 h-4" />
+                      </div>
+                      <span className="font-medium text-slate-300 text-xs">
+                        Tidak ada antrean log pending. Semua data telah tersinkron ke Spreadsheet.
+                      </span>
+                    </div>
+                  ) : (
+                    'Tidak ada data antrean log pending yang sesuai dengan filter pencarian.'
+                  )}
                 </td>
               </tr>
             ) : (
@@ -214,14 +278,22 @@ export const LogTable: React.FC<LogTableProps> = ({
                         </span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-center">
-                      {log.syncedToGoogleSheet ? (
-                        <span className="text-emerald-400 inline-flex items-center" title="Tersinkron ke Google Sheet">
-                          <Check className="w-3.5 h-3.5" />
+                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                      {isSyncing ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-indigo-300 font-sans text-[10px] bg-indigo-500/15 px-2 py-0.5 rounded-full border border-indigo-500/30"
+                          title="Sedang proses sinkronisasi ke Spreadsheet..."
+                        >
+                          <RefreshCw className="w-3 h-3 text-indigo-400 animate-spin shrink-0" />
+                          <span>Sinkron...</span>
                         </span>
                       ) : (
-                        <span className="text-slate-600 inline-flex items-center" title="Lokal saja">
-                          -
+                        <span
+                          className="inline-flex items-center gap-1 text-amber-400/90 font-sans text-[10px] bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20"
+                          title="Menunggu proses sinkronisasi otomatis ke Google Spreadsheet"
+                        >
+                          <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span>Pending</span>
                         </span>
                       )}
                     </td>
